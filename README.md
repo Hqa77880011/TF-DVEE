@@ -1,6 +1,6 @@
 # TF-DVEE
 
-Implementation of **TF-DVEE: Training-Free Multiscale Temporal** video event processing. The pipeline converts frozen vision-language observations into intervals using normal-reference contrast, causal median filtering, hysteresis, local transition checks, visual evidence verification and explicit review decisions.
+Implementation of **TF-DVEE: Training-Free Multiscale Temporal Signal Processing for Evidence-Grounded Video Anomaly Detection and Explanation**. The pipeline converts frozen vision-language observations into intervals using normal-reference contrast, causal median filtering, hysteresis, local transition checks, visual evidence verification and explicit review decisions.
 
 The front end uses frozen CLIP embeddings and a frozen BLIP-2 captioner. All temporal operations and confidence coefficients are explicit parameters. There is no target-domain model training.
 
