@@ -73,6 +73,10 @@ def fit(paths, truth_path, output, regularization=0.001):
     if set(labels) != {0, 1}:
         raise ValueError("Confidence fitting needs both correct and incorrect development events")
     design, labels = np.asarray(rows), np.asarray(labels)
+    location = design.mean(0)
+    scale = design.std(0)
+    scale = np.where(scale > 1e-6, scale, 1)
+    design = (design - location) / scale
     # Give each device equal weight, rather than weighting long device recordings more.
     weights = np.array([1 / groups.count(group) for group in groups])
     weights /= weights.sum()
@@ -89,8 +93,10 @@ def fit(paths, truth_path, output, regularization=0.001):
                         bounds=[(-20, 20)] + [(0, None)] * 4)
     if not solution.success or not np.isfinite(solution.fun):
         raise RuntimeError("Confidence calibration failed: " + solution.message)
+    coefficients = solution.x[1:] / scale
     artifact = dict(protocol="tfdvee.confidence.v1", context=registered,
-                    intercept=float(solution.x[0]), coefficients=solution.x[1:].tolist(),
+                    intercept=float(solution.x[0] - coefficients @ location), coefficients=coefficients.tolist(),
+                    feature_location=location.tolist(), feature_scale=scale.tolist(),
                     video_ids=[video["video_id"] for video in videos],
                     device_groups=sorted({video["device_group"] for video in videos}), development_events=len(labels),
                     regularization=regularization, target="same-state one-to-one temporal IoU >= 0.50",

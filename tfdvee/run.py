@@ -7,7 +7,7 @@ import re
 import numpy as np
 from PIL import Image
 
-from .frontend import FrozenCaptioner, FrozenClip, load_features
+from .frontend import caption_model, visual_model, load_features
 from . import calibration
 from .temporal import confidence, contrast, event_statistics, multiscale, segment
 
@@ -36,13 +36,13 @@ def run(args):
     video = load_features(args.features)
     normal = load_features(args.normal)
     if video["clip_model"] != normal["clip_model"]:
-        raise ValueError("Video and commissioning embeddings must use the same CLIP model")
+        raise ValueError("Video and commissioning embeddings must use the same visual encoder")
     if Path(args.features).resolve() == Path(args.normal).resolve():
         raise ValueError("Commissioning and event videos must be separate inputs")
     registered = calibration.context(args, video["clip_model"], vocabulary)
     confidence_fit = (calibration.load(args.confidence_calibration, registered, args.video_id, args.device_group)
                       if args.confidence_calibration else None)
-    model = FrozenClip(video["clip_model"], args.device)
+    model = visual_model(video["clip_model"], args.device)
     definitions = [vocabulary["normal"]] + states
     prompts = [f"{vocabulary['asset']}, {state['state']}; visible cue: {state['cue']}" for state in definitions]
     if args.variant == "generic_prompts":
@@ -75,7 +75,7 @@ def run(args):
             with Image.open(video["root"] / video["paths"][index]) as opened:
                 images.append(opened.convert("RGB"))
         if captioner is None:
-            captioner = FrozenCaptioner(args.caption_model, args.device)
+            captioner = caption_model(args.caption_model, args.device)
         caption = captioner.describe(images, vocabulary["asset"], state["state"])
         concepts = extract_concepts(caption, all_concepts)
         if args.variant in ("no_evidence", "frame_retrieval"):

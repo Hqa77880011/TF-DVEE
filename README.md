@@ -177,12 +177,13 @@ GitHub Actions installs compatible CPU dependencies and checks compilation, modu
 
 ## Fixed reproduction setting
 
-Frozen local CLIP/BLIP2, 1/3/7s causal windows and 3/1.5 hysteresis; monotone confidence fit on device-disjoint annotated development events.
-
-The checked-in entry point fixes data seeds, methods, budgets and output paths. Inspect its commands without starting any computation:
+The default setting needs no pretrained weights. It renders actual 60-second MJPG commissioning/event videos for two development devices and one held-out test device. Physical blue liquid below a pump appears at 10–22 seconds; unrelated blue signage above the pump at 34–44 seconds is a negative distractor. Device tone and recording noise differ, and normal recordings are independent.
 
 ```bash
-python reproduce.py --plan --features data/features --normal data/normal --vocabulary data/vocabulary --caption-model data/caption-model --video-id heldout-video --device-group heldout-device --development-predictions data/development/events.json --development-truth data/development-truth --truth data/truth
+python reproduce.py --plan
+python reproduce.py --output outputs/finite-setting
 ```
 
-Remove `--plan` to execute the registered pipeline in a fresh output directory. The entry point calls the existing implementation; it does not insert paper results. Installation uses the package instructions above.
+`finite_data.py --output outputs/finite-setting/generated --seed 19` creates videos, closed state vocabulary and separate development/test annotations. The entry point decodes each video at 1 fps with `--clip-model finite_rgb_v1`: the retained CLI/NPZ field name identifies a four-component numerical RGB/position encoder, not CLIP. `--caption-model finite_rgb_rules_v1` describes measured blue location/dry housing from actual evidence frames and ignores the requested state. It is a finite parser, not BLIP/VLM. Native CLIP/BLIP paths remain available separately.
+
+The same normal-reference contrast, 1/3/7-second causal filtering, 3/1.5 hysteresis, transition/evidence checks and matching metrics consume these observations. Uncalibrated development event predictions are matched against physical interval truth; their correct/incorrect outcomes fit the monotone confidence model with standardized development features. The frozen artifact is applied only to the disjoint test device. Neither annotation files nor device IDs are frontend features. Human sufficiency ratings and review-time measurements remain separate optional observational endpoints.

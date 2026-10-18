@@ -6,6 +6,20 @@ from PIL import Image
 import torch
 
 
+def visual_model(name, device):
+    if name == "finite_rgb_v1":
+        from .finite_visual import FiniteVisualEncoder
+        return FiniteVisualEncoder()
+    return FrozenClip(name, device)
+
+
+def caption_model(name, device):
+    if name == "finite_rgb_rules_v1":
+        from .finite_visual import FiniteCaptioner
+        return FiniteCaptioner()
+    return FrozenCaptioner(name, device)
+
+
 class FrozenClip:
     def __init__(self, name, device):
         from transformers import CLIPModel, CLIPProcessor
@@ -64,7 +78,7 @@ def prepare_video(path, output, clip_name, device, fps=1, crop=None, batch_size=
     if not capture.isOpened() or duration <= 0:
         capture.release()
         raise ValueError("Unable to read video duration or frame rate")
-    model = FrozenClip(clip_name, device)
+    model = visual_model(clip_name, device)
     features, times, paths, pending = [], [], [], []
     for index, timestamp in enumerate(np.arange(0, duration, 1 / fps)):
         capture.set(cv2.CAP_PROP_POS_MSEC, float(timestamp * 1000))
