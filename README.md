@@ -2,7 +2,7 @@
 
 Implementation of **TF-DVEE: Training-Free Multiscale Temporal Signal Processing for Evidence-Grounded Video Anomaly Detection and Explanation**. The pipeline converts frozen vision-language observations into intervals using normal-reference contrast, causal median filtering, hysteresis, local transition checks, visual evidence verification and explicit review decisions.
 
-The front end uses frozen CLIP embeddings and a frozen BLIP-2 captioner. All temporal operations and confidence coefficients are explicit parameters. There is no target-domain model training.
+The front end uses frozen CLIP embeddings and a frozen BLIP-2 captioner. All temporal operations are explicit parameters. An optional device-disjoint logistic confidence postprocessor fits annotated development events without training either vision-language model.
 
 ## Install
 
@@ -97,7 +97,18 @@ Variants are `tfdvee`, `frame_retrieval`, `no_temporal`, `no_normal_contrast`, `
 
 The implemented comparison is frozen frame retrieval plus mechanism ablations. Published LAVAD, Open-VAD, Vid2Seq and FreeDVC outputs can use the same evaluation schema; those distinct algorithms are not replaced with a renamed local heuristic.
 
-For disturbance-specific comparisons, encode the actual low-light, camera-vibration, occlusion or compressed videos with the same source event identities and sample rate, then run with the corresponding `--condition`. For transition stress, annotate the actual repeated-motion, slow-onset or ambiguous videos. Fix coefficients on development groups by running the explicit configurations and comparing their development metrics, then preserve them for test processing.
+For disturbance-specific comparisons, encode the actual low-light, camera-vibration, occlusion or compressed videos with the same source event identities and sample rate, then run with the corresponding `--condition`. For transition stress, annotate the actual repeated-motion, slow-onset or ambiguous videos. Freeze temporal/frontend settings on development groups before test processing.
+
+## Development confidence fitting
+
+First generate uncalibrated development event files with the same frozen temporal/frontend configuration, and independently annotate those videos. Fit the event-confidence postprocessor:
+
+```bash
+python -m tfdvee calibrate --predictions outputs/dev_A/events.json outputs/dev_B/events.json --truth data/development_truth.json --output data/confidence.json
+python -m tfdvee run --features data/process/features.npz --normal data/normal/features.npz --vocabulary data/states.json --video-id process01 --device-group heldout_pump --confidence-calibration data/confidence.json --output outputs/calibrated --device cuda
+```
+
+The fit uses `[strength, evidence_consistency, -disagreement, -ambiguity]`, a learned intercept and nonnegative coefficients, with L2 regularization 0.001 and equal total weight per development device. Targets are same-state one-to-one temporal matches at IoU 0.50 under the frozen development detector ordering; both correct and incorrect events are required. The artifact binds the complete vocabulary, CLIP/captioner and temporal configuration. Reusing any development video/device at test or changing that configuration is rejected. This is empirical event-confidence fitting, without a distribution-free risk guarantee. Preset coefficients remain available as explicit uncalibrated scores; `no_calibration` remains the strength-only ablation.
 
 ## 5. Supply ground truth and evaluate
 
@@ -163,3 +174,15 @@ python -m tfdvee plot --signals outputs/tfdvee/signals.npz --metrics outputs/tfd
 Paired analysis requires at least two matching device groups. It computes method-minus-baseline mean differences, 10,000 device bootstrap intervals, Wilcoxon tests and Holm-adjusted p-values over endpoints available for both methods. Missing human endpoints do not acquire synthetic values. Figures include temporal score traces, risk–coverage curves and metric comparisons.
 
 GitHub Actions installs compatible CPU dependencies and checks compilation, module imports and frozen-model API imports. It does not download model weights or process video.
+
+## Fixed reproduction setting
+
+Frozen local CLIP/BLIP2, 1/3/7s causal windows and 3/1.5 hysteresis; monotone confidence fit on device-disjoint annotated development events.
+
+The checked-in entry point fixes data seeds, methods, budgets and output paths. Inspect its commands without starting any computation:
+
+```bash
+python reproduce.py --plan --features data/features --normal data/normal --vocabulary data/vocabulary --caption-model data/caption-model --video-id heldout-video --device-group heldout-device --development-predictions data/development/events.json --development-truth data/development-truth --truth data/truth
+```
+
+Remove `--plan` to execute the registered pipeline in a fresh output directory. The entry point calls the existing implementation; it does not insert paper results. Installation uses the package instructions above.

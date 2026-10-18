@@ -8,6 +8,7 @@ import numpy as np
 from PIL import Image
 
 from .frontend import FrozenCaptioner, FrozenClip, load_features
+from . import calibration
 from .temporal import confidence, contrast, event_statistics, multiscale, segment
 
 
@@ -22,6 +23,8 @@ def extract_concepts(text, concepts):
 
 
 def run(args):
+    if args.confidence_calibration and args.variant in ("no_calibration", "frame_retrieval"):
+        raise ValueError("Strength-only ablations do not consume a confidence calibration artifact")
     if args.temperature <= 0 or args.pre_context <= 0 or min(args.windows) < 0:
         raise ValueError("Invalid temperature or temporal context")
     if not 0 <= args.evidence_alpha <= 1 or not 0 <= args.confidence_threshold <= 1:
@@ -36,6 +39,9 @@ def run(args):
         raise ValueError("Video and commissioning embeddings must use the same CLIP model")
     if Path(args.features).resolve() == Path(args.normal).resolve():
         raise ValueError("Commissioning and event videos must be separate inputs")
+    registered = calibration.context(args, video["clip_model"], vocabulary)
+    confidence_fit = (calibration.load(args.confidence_calibration, registered, args.video_id, args.device_group)
+                      if args.confidence_calibration else None)
     model = FrozenClip(video["clip_model"], args.device)
     definitions = [vocabulary["normal"]] + states
     prompts = [f"{vocabulary['asset']}, {state['state']}; visible cue: {state['cue']}" for state in definitions]
@@ -83,6 +89,8 @@ def run(args):
         else:
             score = confidence(statistics["strength"], evidence_score, statistics["disagreement"],
                                statistics["ambiguity"], args.confidence_coefficients)
+            if confidence_fit:
+                score = calibration.predict(dict(statistics, evidence_consistency=evidence_score), confidence_fit)
         weak_evidence = evidence_score < args.evidence_threshold and args.variant not in ("no_evidence", "frame_retrieval")
         review = score < args.confidence_threshold or weak_evidence or safety or statistics["no_pre_context"]
         if args.variant == "no_referral":
@@ -99,7 +107,9 @@ def run(args):
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
     payload = dict(video_id=args.video_id, device_group=args.device_group, duration=video["duration"],
-                   variant=args.variant, condition=args.condition, events=records, config=vars(args))
+                   variant=args.variant, condition=args.condition, events=records, config=vars(args),
+                   calibration_context=registered,
+                   confidence_calibration=confidence_fit)
     (output / "events.json").write_text(json.dumps(payload, indent=2, allow_nan=False), encoding="utf-8")
     np.savez_compressed(output / "signals.npz", timestamps=video["timestamps"], contrast=signal,
                         filtered=filtered, scales=scales, states=np.array([state["id"] for state in states]))

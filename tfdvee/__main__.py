@@ -8,6 +8,7 @@ from .frontend import prepare_video
 from .metrics import compare, evaluate_files
 from .run import run
 from .temporal import VARIANTS
+from .calibration import fit as fit_confidence
 
 
 def plot(signals, metrics, output):
@@ -92,8 +93,14 @@ def main():
     inference.add_argument("--transition-threshold", type=float, default=0.5)
     inference.add_argument("--evidence-alpha", type=float, default=0.5)
     inference.add_argument("--confidence-coefficients", type=float, nargs=4, default=[0.5, 2, 0.5, 1])
+    inference.add_argument("--confidence-calibration", help="Device-disjoint development artifact from calibrate")
     inference.add_argument("--confidence-threshold", type=float, default=0.7)
     inference.add_argument("--evidence-threshold", type=float, default=0.3)
+    calibration = commands.add_parser("calibrate")
+    calibration.add_argument("--predictions", nargs="+", required=True)
+    calibration.add_argument("--truth", required=True)
+    calibration.add_argument("--output", required=True)
+    calibration.add_argument("--regularization", type=float, default=0.001)
     evaluation = commands.add_parser("evaluate")
     evaluation.add_argument("--predictions", nargs="+", required=True)
     evaluation.add_argument("--truth", required=True)
@@ -116,6 +123,8 @@ def main():
         run(args)
     elif args.command == "evaluate":
         evaluate_files(args.predictions, args.truth, args.output, args.ratings, args.reviews)
+    elif args.command == "calibrate":
+        fit_confidence(args.predictions, args.truth, args.output, args.regularization)
     elif args.command == "compare":
         compare(args.first, args.second, args.output, args.resamples)
     else:
